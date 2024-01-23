@@ -1,7 +1,7 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const PORT = process.env.PORT || 5000;
 require("dotenv").config();
 
@@ -26,6 +26,7 @@ async function run() {
     await client.connect();
 
     const userCollection = client.db("RentHunter").collection("users");
+    const roomCollection = client.db("RentHunter").collection("room");
 
     // Create A User
     app.post("/api/signUp", async (req, res) => {
@@ -67,8 +68,30 @@ async function run() {
       const email = req.query.email;
       const query = { userEmail: email };
       const result = await userCollection.findOne(query);
+      console.log(result);
       res.send(result);
     });
+    // Add New Room
+    app.post("/api/addRoom", async (req, res) => {
+      const roomData = req.body;
+      const result = await roomCollection.insertOne(roomData);
+      res.send(result);
+    });
+
+    // Get the listed Data for signIn User
+    app.get("/api/getMyListedHouse", async (req, res) => {
+      const email = req.query.email;
+      const query = { userEmail: email };
+      const result = await roomCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    app.delete('/api/deleteRoom/:id',async(req,res)=>{
+      const id = req.params.id;
+      const query = {_id:new ObjectId(id)}
+      const result = await roomCollection.deleteOne(query)
+      res.send(result)
+    })
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
