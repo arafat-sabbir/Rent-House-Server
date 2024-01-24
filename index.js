@@ -8,7 +8,9 @@ require("dotenv").config();
 
 // MiddleWares
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin:["https://rent-hunter.netlify.app","http://localhost:5173"]
+}));
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.t245pno.mongodb.net/?retryWrites=true&w=majority`;
 
@@ -24,17 +26,29 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
 
     const userCollection = client.db("RentHunter").collection("users");
     const roomCollection = client.db("RentHunter").collection("room");
     const bookingCollection = client.db("RentHunter").collection("booking")
 
-    app.get('/api/houses',async(req,res)=>{
-      const result = await roomCollection.find().toArray()
-      res.send(result)
-    })
-
+    app.get('/api/houses', async (req, res) => {
+      const filter = req.query;
+      const search = filter.search;
+      const priceSort = filter.sort;
+    
+      const query = {
+        name: { $regex: search, $options: "i" },
+      };
+    
+      const sort = {};
+      if (priceSort) {
+        sort["rentPerMonth"] = priceSort;
+      }
+    
+      const result = await roomCollection.find(query).sort(sort).toArray();
+      res.send(result);
+    });
+    
     app.post('/api/jwt',async(req,res)=>{
       try {
         const user = req.body;
@@ -143,6 +157,13 @@ async function run() {
     // Booking House
     app.post('/api/addBookings',async(req,res)=>{
       const houseData= req.body;
+      const email = req.query.email;
+      console.log(email);
+      const query = {userEmail:email}
+      const isHouseExist = await bookingCollection.find(query).toArray()
+      if(isHouseExist.length>=2){
+       return res.send({message:"You can't Book More Then Two House"})
+      }
       const result = await bookingCollection.insertOne(houseData)
       res.send(result)
     })
@@ -155,8 +176,14 @@ async function run() {
       res.send(result)
     })
 
+    app.delete('/api/deleteBooking/:id',async(req,res)=>{
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await bookingCollection.deleteOne(query);
+      res.send(result);
+    })
+
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
