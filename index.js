@@ -28,6 +28,7 @@ async function run() {
 
     const userCollection = client.db("RentHunter").collection("users");
     const roomCollection = client.db("RentHunter").collection("room");
+    const bookingCollection = client.db("RentHunter").collection("booking")
 
     app.get('/api/houses',async(req,res)=>{
       const result = await roomCollection.find().toArray()
@@ -115,7 +116,7 @@ async function run() {
       const result = await roomCollection.findOne(query);
       res.send(result);
     });
-
+// Update house from mylisting
     app.patch("/api/updateHouse/:id", async (req, res) => {
       const id = req.params.id;
       const updatedData = req.body;
@@ -138,6 +139,21 @@ async function run() {
       const result = await roomCollection.updateOne(query, updateDoc);
       res.send(result);
     });
+
+    // Booking House
+    app.post('/api/addBookings',async(req,res)=>{
+      const houseData= req.body;
+      const result = await bookingCollection.insertOne(houseData)
+      res.send(result)
+    })
+
+    // Get the booked house for house renter 
+    app.get('/api/myBookings',async(req,res)=>{
+      const email = req.query.email;
+      const query = {userEmail:email}
+      const result = await bookingCollection.find(query).toArray()
+      res.send(result)
+    })
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
