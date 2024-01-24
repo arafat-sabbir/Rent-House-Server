@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const jwt = require('jsonwebtoken')
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const PORT = process.env.PORT || 5000;
 require("dotenv").config();
@@ -28,6 +29,23 @@ async function run() {
     const userCollection = client.db("RentHunter").collection("users");
     const roomCollection = client.db("RentHunter").collection("room");
 
+    app.get('/api/houses',async(req,res)=>{
+      const result = await roomCollection.find().toArray()
+      res.send(result)
+    })
+
+    app.post('/api/jwt',async(req,res)=>{
+      try {
+        const user = req.body;
+        const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+          expiresIn: "1h",
+        });
+        res.send({ token });
+      } catch (error) {
+        console.log(error);
+      }
+    })
+
     // Create A User
     app.post("/api/signUp", async (req, res) => {
       try {
@@ -53,23 +71,21 @@ async function run() {
         const query = { userEmail: email };
         const DataOnDb = await userCollection.findOne(query);
         if (!DataOnDb) {
-          return res.send({ message: "No Account Found" });
+          return res.send({ signIn: false, message: "No Account Found" });
         } else if (DataOnDb.password !== userData.password) {
-          return res.send({ message: "Password Doesn't Match Try Again" });
+          return res.send({
+            signIn: false,
+            message: "Password Doesn't Match Try Again",
+          });
         }
-        res.send({ message: "User Credential Matched" });
+        const userEmail = DataOnDb.userEmail;
+        const role = DataOnDb.role;
+        const userName = DataOnDb.userName;
+        const loggedUserData = {userEmail,role,userName}
+        res.send({ signIn:true,loggedUserData });
       } catch (error) {
         console.log(error);
       }
-    });
-
-    // Get Signed In User Data From Db
-    app.get("/api/getUserInfo", async (req, res) => {
-      const email = req.query.email;
-      const query = { userEmail: email };
-      const result = await userCollection.findOne(query);
-      console.log(result);
-      res.send(result);
     });
     // Add New Room
     app.post("/api/addRoom", async (req, res) => {
@@ -85,13 +101,43 @@ async function run() {
       const result = await roomCollection.find(query).toArray();
       res.send(result);
     });
-
-    app.delete('/api/deleteRoom/:id',async(req,res)=>{
+// Delete Room From MY LIsting
+    app.delete("/api/deleteRoom/:id", async (req, res) => {
       const id = req.params.id;
-      const query = {_id:new ObjectId(id)}
-      const result = await roomCollection.deleteOne(query)
-      res.send(result)
-    })
+      const query = { _id: new ObjectId(id) };
+      const result = await roomCollection.deleteOne(query);
+      res.send(result);
+    });
+    // Get the room data for edit
+    app.get("/api/getRoomDetail/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await roomCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.patch("/api/updateHouse/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedData = req.body;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          name: updatedData.name,
+          city: updatedData.city,
+          address: updatedData.address,
+          bedrooms: updatedData.bedrooms,
+          bathrooms: updatedData.bathrooms,
+          roomSize: updatedData.roomSize,
+          roomPicture: updatedData.roomPicture,
+          rentPerMonth: updatedData.rentPerMonth,
+          availabilityDate: updatedData.availabilityDate,
+          phoneNumber: updatedData.phoneNumber,
+          roomDescription: updatedData.roomDescription,
+        },
+      };
+      const result = await roomCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
